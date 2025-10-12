@@ -13,8 +13,8 @@ app = Flask(__name__,
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 # API Keys
-OPENWEATHER_API_KEY = "1ea1ac0af917c908f176bc827ed4e4a7"
-UNSPLASH_API_KEY = "VFkYYOJCycy-xY3IhuYhIE05NT1Vt42tEgEzEi1FwZk"
+OPENWEATHER_API_KEY = ""
+UNSPLASH_API_KEY = ""
 
 # Login credentials - Updated
 VALID_USERNAME = "harish"
@@ -193,4 +193,5 @@ if __name__ == '__main__':
     print(f"Login: username=harish, password=56789")
     print("=" * 50)
     
+
     app.run(debug=True, host='0.0.0.0', port=5000)
