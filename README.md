@@ -1,1 +1,1 @@
-# harish
+A fully functional and responsive web-based weather application that allows users to log in, search for any city, and instantly view real-time weather conditions using the OpenWeatherMap API. The app dynamically changes its background based on the searched city using the Unsplash API and maintains a personalized search history through Flask session management.
