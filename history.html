@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - Weather App</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            color: #fff;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: url('https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?cs=srgb&dl=pexels-pixabay-209831.jpg&fm=jpg') no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        .navbar {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 1.2em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+
+        .nav-brand {
+            color: #ffcc00;
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .nav-menu {
+            list-style: none;
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+        }
+
+        .nav-item a {
+            color: #fff;
+            text-decoration: none;
+            margin-left: 1.2em;
+            font-size: 1.2em;
+            transition: color 0.3s;
+            cursor: pointer;
+        }
+
+        .nav-item a:hover {
+            color: #ffcc00;
+        }
+
+        .logout-btn {
+            background-color: #ff0000;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 1em;
+            margin-left: 1em;
+            transition: background-color 0.3s;
+        }
+
+        .logout-btn:hover {
+            background-color: #cc0000;
+        }
+
+        .main-content {
+            margin-top: 120px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin-bottom: 40px;
+        }
+
+        .history-container {
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ffcc00;
+            border-radius: 15px;
+            padding: 40px;
+            width: 90%;
+            max-width: 1100px;
+            min-height: 500px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 2px solid #ffcc00;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            color: #ffcc00;
+        }
+
+        .history-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 204, 0, 0.3);
+        }
+
+        .history-controls p {
+            color: #fff;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .clear-btn {
+            padding: 12px 24px;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            font-weight: 600;
+        }
+
+        .clear-btn:hover {
+            background-color: #cc0000;
+            transform: translateY(-2px);
+        }
+
+        .history-list {
+            list-style: none;
+            padding: 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .history-list::-webkit-scrollbar-track {
+            background: rgba(255, 204, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: #ffcc00;
+            border-radius: 10px;
+        }
+
+        .history-item {
+            background-color: rgba(255, 204, 0, 0.1);
+            border: 1px solid #ffcc00;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            transform: translateY(-5px);
+            background-color: rgba(255, 204, 0, 0.2);
+            box-shadow: 0 6px 20px rgba(255, 204, 0, 0.3);
+        }
+
+        .history-item-info {
+            flex: 1;
+        }
+
+        .history-item-city {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #ffcc00;
+            margin-bottom: 8px;
+        }
+
+        .history-item-time {
+            font-size: 1.1em;
+            color: #fff;
+            opacity: 0.9;
+        }
+
+        .search-again-btn {
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            font-weight: 600;
+        }
+
+        .search-again-btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #fff;
+        }
+
+        .empty-state h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            color: #ffcc00;
+        }
+
+        .empty-state p {
+            font-size: 1.2em;
+            line-height: 1.8;
+            margin-bottom: 30px;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 14px 30px;
+            background-color: #ffcc00;
+            color: black;
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            transition: background-color 0.3s, transform 0.2s;
+            font-weight: 600;
+        }
+
+        .back-btn:hover {
+            background-color: #ff6600;
+            transform: translateY(-3px);
+        }
+
+        .stats-summary {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: rgba(255, 204, 0, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 204, 0, 0.2);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #fff;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .nav-brand {
+                font-size: 1.5em;
+            }
+
+            .nav-item a {
+                font-size: 1em;
+                margin-left: 0.8em;
+            }
+
+            .history-container {
+                padding: 25px;
+                width: 95%;
+                min-height: 400px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .history-controls {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+
+            .history-controls p {
+                text-align: center;
+            }
+
+            .clear-btn {
+                width: 100%;
+            }
+
+            .history-item {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 20px;
+            }
+
+            .history-item-city {
+                font-size: 1.3em;
+            }
+
+            .history-item-time {
+                font-size: 1em;
+            }
+
+            .search-again-btn {
+                margin-top: 15px;
+                width: 100%;
+            }
+
+            .stats-summary {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">WEATHER APP</div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="{{ url_for('index') }}">🏠 Home</a></li>
+        </ul>
+        <a href="{{ url_for('show_login') }}" class="logout-btn">Logout</a>
+    </nav>
+
+    <div class="main-content">
+        <div class="history-container">
+            <h1>🕒 Search History</h1>
+            
+            <div class="stats-summary" id="stats-summary" style="display: none;">
+                <div class="stat-item">
+                    <div class="stat-value" id="total-searches">0</div>
+                    <div class="stat-label">Total Searches</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="unique-cities">0</div>
+                    <div class="stat-label">Unique Cities</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="recent-time">--</div>
+                    <div class="stat-label">Last Search</div>
+                </div>
+            </div>
+
+            <div class="history-controls">
+                <p>📍 Recent Searches</p>
+                <button class="clear-btn" onclick="clearHistory()">🗑️ Clear All History</button>
+            </div>
+
+            <ul class="history-list" id="history-list">
+                <!-- History items will be populated here -->
+            </ul>
+
+            <div class="empty-state" id="empty-state" style="display: none;">
+                <h2>📭 No Search History</h2>
+                <p>You haven't searched for any cities yet. Start exploring weather data to build your history!</p>
+                <a href="{{ url_for('index') }}" class="back-btn">🔍 Go to Weather Search</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load search history on page load
+        document.addEventListener('DOMContentLoaded', loadHistory);
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/search-history');
+                const result = await response.json();
+
+                if (result.success && result.history && result.history.length > 0) {
+                    displayHistory(result.history);
+                    updateStats(result.history);
+                } else {
+                    showEmptyState();
+                }
+            } catch (error) {
+                console.error('Error loading history:', error);
+                showEmptyState();
+            }
+        }
+
+        function displayHistory(history) {
+            const historyList = document.getElementById('history-list');
+            const emptyState = document.getElementById('empty-state');
+            
+            historyList.innerHTML = '';
+            emptyState.style.display = 'none';
+
+            history.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                li.innerHTML = `
+                    <div class="history-item-info">
+                        <div class="history-item-city">📍 ${item.city}</div>
+                        <div class="history-item-time">
+                            📅 ${item.date} • ⏰ ${item.time}
+                        </div>
+                    </div>
+                    <button class="search-again-btn" onclick="searchAgain('${item.city}')">
+                        🔍 Search Again
+                    </button>
+                `;
+                historyList.appendChild(li);
+            });
+        }
+
+        function updateStats(history) {
+            const statsSummary = document.getElementById('stats-summary');
+            const totalSearches = document.getElementById('total-searches');
+            const uniqueCities = document.getElementById('unique-cities');
+            const recentTime = document.getElementById('recent-time');
+
+            if (history && history.length > 0) {
+                statsSummary.style.display = 'flex';
+                
+                // Total searches
+                totalSearches.textContent = history.length;
+                
+                // Unique cities
+                const cities = new Set(history.map(item => item.city.toLowerCase()));
+                uniqueCities.textContent = cities.size;
+                
+                // Most recent search time
+                const mostRecent = history[0];
+                recentTime.textContent = mostRecent.time.split(' ')[0]; // Just the time part
+            } else {
+                statsSummary.style.display = 'none';
+            }
+        }
+
+        function showEmptyState() {
+            const historyList = document.getElementById('history-list');
+            const emptyState = document.getElementById('empty-state');
+            const statsSummary = document.getElementById('stats-summary');
+            
+            historyList.innerHTML = '';
+            emptyState.style.display = 'block';
+            statsSummary.style.display = 'none';
+        }
+
+        async function clearHistory() {
+            if (!confirm('⚠️ Are you sure you want to clear all search history? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/clear-history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showEmptyState();
+                    alert('✅ History cleared successfully!');
+                } else {
+                    alert('❌ Failed to clear history. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error clearing history:', error);
+                alert('❌ Error clearing history. Please try again.');
+            }
+        }
+
+        function searchAgain(city) {
+            // Redirect to main page with city parameter
+            window.location.href = `/index?city=${encodeURIComponent(city)}`;
+        }
+    </script>
+</body>
+</html>
