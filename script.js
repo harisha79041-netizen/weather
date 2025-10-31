@@ -8,18 +8,17 @@ const feelsLikeEl = document.getElementById("feels-like");
 const humidityEl = document.getElementById("humidity");
 const windEl = document.getElementById("wind");
 const pressureEl = document.getElementById("pressure");
-const visibilityEl = document.getElementById("visibility");
-const sunriseEl = document.getElementById("sunrise");
-const sunsetEl = document.getElementById("sunset");
 const dateEl = document.getElementById("date");
 const timeEl = document.getElementById("time");
 const iconEl = document.querySelector(".icon");
 const weatherDefault = document.querySelector(".weather-default");
 const weatherData = document.querySelector(".weather-data");
+const forecastContainer = document.getElementById("forecast-container");
 
 // Default temperature unit (Celsius)
 let isCelsius = true;
 let currentWeatherData = null;
+let currentCity = "";
 
 // ========== EVENT LISTENERS ==========
 if (searchBtn) {
@@ -36,7 +35,7 @@ if (cityInput) {
 document.addEventListener('DOMContentLoaded', function() {
   console.log("Weather app initialized");
   
-  // Start time update
+  // Start time and date update immediately - this will keep updating every second
   updateDateTime();
   
   // Check if city parameter is in URL (from history page)
@@ -61,22 +60,25 @@ async function getWeather() {
     return;
   }
 
+  currentCity = city;
+
   try {
     // Show loading state
     if (searchBtn) {
       searchBtn.disabled = true;
-      searchBtn.textContent = "🔄 Loading...";
+      searchBtn.innerHTML = '<span style="animation: spin 1s linear infinite; display: inline-block;">🔄</span> Loading...';
     }
 
     // Call Flask backend API
     const response = await fetch(`/api/weather/${encodeURIComponent(city)}`);
     const result = await response.json();
+    console.log("Weather API response:", result);
 
     if (!result.success) {
       alert(result.message || "City not found! Please try again.");
       if (searchBtn) {
         searchBtn.disabled = false;
-        searchBtn.textContent = "🔍 Search";
+        searchBtn.innerHTML = "🔍 Search";
       }
       return;
     }
@@ -96,9 +98,6 @@ async function getWeather() {
     if (humidityEl) humidityEl.textContent = `${data.humidity}%`;
     if (windEl) windEl.textContent = `${data.wind_speed} km/h`;
     if (pressureEl) pressureEl.textContent = `${data.pressure} hPa`;
-    if (visibilityEl) visibilityEl.textContent = `${data.visibility} km`;
-    if (sunriseEl) sunriseEl.textContent = data.sunrise;
-    if (sunsetEl) sunsetEl.textContent = data.sunset;
     if (dateEl) dateEl.textContent = data.date;
     if (timeEl) timeEl.textContent = data.time;
 
@@ -111,13 +110,16 @@ async function getWeather() {
     // Save to search history
     await saveToHistory(data.city);
 
-    // Update background image
-    updateBackground(city);
+    // Update background image (dynamic based on weather)
+    updateBackground(city, data.description);
+
+    // Auto-update forecast (even if not on forecast tab)
+    await getForecast(city);
 
     // Reset button
     if (searchBtn) {
       searchBtn.disabled = false;
-      searchBtn.textContent = "🔍 Search";
+      searchBtn.innerHTML = "🔍 Search";
     }
     
     // Reset to Celsius
@@ -130,16 +132,135 @@ async function getWeather() {
     alert("Unable to fetch weather data right now. Please try again.");
     if (searchBtn) {
       searchBtn.disabled = false;
-      searchBtn.textContent = "🔍 Search";
+      searchBtn.innerHTML = "🔍 Search";
     }
   }
 }
 
-// ========== UPDATE BACKGROUND ==========
-async function updateBackground(city) {
+// ========== FETCH 5-DAY FORECAST ==========
+async function getForecast(city) {
+  if (!city) {
+    console.error("No city provided for forecast");
+    if (forecastContainer) {
+      forecastContainer.innerHTML = `
+        <div class="forecast-day">
+          <h4>📭 No Data</h4>
+          <p>Please search for a city first</p>
+        </div>
+      `;
+    }
+    return;
+  }
+
   try {
-    const response = await fetch(`/api/background/${encodeURIComponent(city)}`);
+    // Show loading state
+    if (forecastContainer) {
+      forecastContainer.innerHTML = `
+        <div class="forecast-day">
+          <h4>⏳ Loading...</h4>
+          <p>Fetching 5-day forecast...</p>
+        </div>
+      `;
+    }
+
+    const response = await fetch(`/api/forecast/${encodeURIComponent(city)}`);
     const result = await response.json();
+    console.log("Forecast API response:", result);
+
+    if (!result.success) {
+      console.error("Forecast fetch failed:", result.message);
+      if (forecastContainer) {
+        forecastContainer.innerHTML = `
+          <div class="forecast-day">
+            <h4>❌ Error</h4>
+            <p>${result.message || 'Unable to fetch forecast'}</p>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    const forecast = result.data;
+    if (forecast && forecast.length > 0) {
+      displayForecast(forecast);
+    } else {
+      if (forecastContainer) {
+        forecastContainer.innerHTML = `
+          <div class="forecast-day">
+            <h4>📭 No Data</h4>
+            <p>No forecast available</p>
+          </div>
+        `;
+      }
+    }
+    
+  } catch (error) {
+    console.error("Forecast fetch error:", error);
+    if (forecastContainer) {
+      forecastContainer.innerHTML = `
+        <div class="forecast-day">
+          <h4>❌ Error</h4>
+          <p>Network error. Please try again.</p>
+        </div>
+      `;
+    }
+  }
+}
+
+// ========== DISPLAY 5-DAY FORECAST ==========
+function displayForecast(forecastData) {
+  if (!forecastContainer) {
+    console.error("Forecast container not found");
+    return;
+  }
+  
+  if (!forecastData || forecastData.length === 0) {
+    forecastContainer.innerHTML = `
+      <div class="forecast-day">
+        <h4>📭 No Data</h4>
+        <p>Forecast not available</p>
+      </div>
+    `;
+    return;
+  }
+  
+  forecastContainer.innerHTML = '';
+  
+  forecastData.forEach((day, index) => {
+    const forecastDay = document.createElement('div');
+    forecastDay.className = 'forecast-day';
+    forecastDay.style.animation = `slideIn 0.5s ease ${index * 0.1}s forwards`;
+    forecastDay.style.opacity = '0';
+    
+    forecastDay.innerHTML = `
+      <h4>${day.day || 'N/A'}</h4>
+      <p class="forecast-date">${day.date || ''}</p>
+      <img src="https://openweathermap.org/img/wn/${day.icon || '01d'}@2x.png" 
+           alt="${day.description || 'Weather'}" 
+           class="forecast-icon">
+      <p class="forecast-desc">${day.description || 'No description'}</p>
+      <div class="forecast-temps">
+        <p class="temp-high">↑ ${day.temp_max || 0}°C</p>
+        <p class="temp-low">↓ ${day.temp_min || 0}°C</p>
+      </div>
+      <div class="forecast-details">
+        <p>💧 ${day.humidity || 0}%</p>
+        <p>💨 ${day.wind_speed || 0} km/h</p>
+      </div>
+    `;
+    
+    forecastContainer.appendChild(forecastDay);
+  });
+  
+  console.log(`Displayed ${forecastData.length} forecast days`);
+}
+
+// ========== UPDATE BACKGROUND ==========
+async function updateBackground(city, description) {
+  try {
+    const response = await fetch(`/api/background/${encodeURIComponent(city)}/${encodeURIComponent(description)}`);
+    const result = await response.json();
+    console.log("Background API response:", result);
     
     if (result.success && result.image_url) {
       document.body.style.backgroundImage = `url(${result.image_url})`;
@@ -150,9 +271,15 @@ async function updateBackground(city) {
       if (result.photographer) {
         console.log(`Photo by ${result.photographer} on Unsplash`);
       }
+    } else {
+      // Fallback to default background
+      document.body.style.backgroundImage = `url('https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?cs=srgb&dl=pexels-pixabay-209831.jpg&fm=jpg')`;
+      console.warn("Using fallback background:", result.message);
     }
   } catch (error) {
     console.error("Background fetch error:", error);
+    // Fallback
+    document.body.style.backgroundImage = `url('https://images.pexels.com/photos/209831/pexels-photo-209831.jpeg?cs=srgb&dl=pexels-pixabay-209831.jpg&fm=jpg')`;
   }
 }
 
@@ -200,6 +327,9 @@ function toggleUnits() {
     tempEl.textContent = `${tempValue.toFixed(1)}°F`;
     feelsLikeEl.textContent = `${feelsLikeValue.toFixed(1)}°F`;
     isCelsius = false;
+    
+    // Update forecast if visible
+    updateForecastUnits(false);
   } else {
     // Convert to Celsius
     tempValue = ((tempValue - 32) * 5) / 9;
@@ -207,12 +337,54 @@ function toggleUnits() {
     tempEl.textContent = `${tempValue.toFixed(1)}°C`;
     feelsLikeEl.textContent = `${feelsLikeValue.toFixed(1)}°C`;
     isCelsius = true;
+    
+    // Update forecast if visible
+    updateForecastUnits(true);
   }
+}
+
+// ========== UPDATE FORECAST UNITS ==========
+function updateForecastUnits(toCelsius) {
+  const tempHighElements = document.querySelectorAll('.temp-high');
+  const tempLowElements = document.querySelectorAll('.temp-low');
+  
+  tempHighElements.forEach(el => {
+    const match = el.textContent.match(/↑ ([\d.]+)°([CF])/);
+    if (match) {
+      let temp = parseFloat(match[1]);
+      if (toCelsius && match[2] === 'F') {
+        temp = ((temp - 32) * 5) / 9;
+        el.textContent = `↑ ${temp.toFixed(1)}°C`;
+      } else if (!toCelsius && match[2] === 'C') {
+        temp = (temp * 9) / 5 + 32;
+        el.textContent = `↑ ${temp.toFixed(1)}°F`;
+      }
+    }
+  });
+  
+  tempLowElements.forEach(el => {
+    const match = el.textContent.match(/↓ ([\d.]+)°([CF])/);
+    if (match) {
+      let temp = parseFloat(match[1]);
+      if (toCelsius && match[2] === 'F') {
+        temp = ((temp - 32) * 5) / 9;
+        el.textContent = `↓ ${temp.toFixed(1)}°C`;
+      } else if (!toCelsius && match[2] === 'C') {
+        temp = (temp * 9) / 5 + 32;
+        el.textContent = `↓ ${temp.toFixed(1)}°F`;
+      }
+    }
+  });
 }
 
 // ========== SECTION SWITCHER ==========
 function showSection(section, event) {
   console.log("Switching to section:", section);
+  
+  // If switching to forecast and we have a city, load forecast
+  if (section === 'forecast' && currentCity) {
+    getForecast(currentCity);
+  }
   
   // Hide all sections
   const allSections = document.querySelectorAll(".section-content");
@@ -244,11 +416,19 @@ function showSection(section, event) {
   }
 }
 
-// ========== AUTO UPDATE TIME ==========
+// ========== AUTO UPDATE TIME AND DATE ==========
 function updateDateTime() {
   const now = new Date();
   
-  if (timeEl && weatherData && weatherData.classList.contains("show")) {
+  // Update date
+  if (dateEl) {
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDate = now.toLocaleDateString('en-US', dateOptions);
+    dateEl.textContent = formattedDate;
+  }
+  
+  // Update time
+  if (timeEl) {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
@@ -261,6 +441,27 @@ function updateDateTime() {
 
 // Update time every second
 setInterval(updateDateTime, 1000);
+
+// Add CSS animation for forecast
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(style);
 
 // Make functions globally available for onclick handlers
 window.getWeather = getWeather;
