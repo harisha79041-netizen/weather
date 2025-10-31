@@ -27,8 +27,8 @@ if not UNSPLASH_API_KEY:
     print("❌ ERROR: UNSPLASH_API_KEY not set in api.env")
 
 # Login credentials
-VALID_USERNAME = "harish"
-VALID_PASSWORD_HASH = generate_password_hash("56789")
+VALID_USERNAME = ""
+VALID_PASSWORD_HASH = generate_password_hash("")
 
 @app.route('/')
 def show_login():
@@ -302,3 +302,4 @@ if __name__ == '__main__':
     print("🌐 App running at: http://localhost:5000")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
+
