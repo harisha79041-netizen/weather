@@ -3,6 +3,10 @@ import requests
 import os
 from datetime import datetime
 from werkzeug.security import check_password_hash, generate_password_hash
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv('api.env')
 
 # Initialize Flask
 app = Flask(__name__, 
@@ -12,11 +16,17 @@ app = Flask(__name__,
 # Secret key for session management
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
-# API Keys
-OPENWEATHER_API_KEY = ""
-UNSPLASH_API_KEY = ""
+# API Keys from .env file
+OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+UNSPLASH_API_KEY = os.getenv('UNSPLASH_API_KEY')
 
-# Login credentials - Updated
+# Validate keys on startup
+if not OPENWEATHER_API_KEY:
+    print("❌ ERROR: OPENWEATHER_API_KEY not set in api.env")
+if not UNSPLASH_API_KEY:
+    print("❌ ERROR: UNSPLASH_API_KEY not set in api.env")
+
+# Login credentials
 VALID_USERNAME = "harish"
 VALID_PASSWORD_HASH = generate_password_hash("56789")
 
@@ -45,7 +55,7 @@ def handle_login():
 def logout():
     """Handle logout"""
     session.clear()
-    return redirect(url_for('show_login.html'))
+    return redirect(url_for('show_login'))
 
 @app.route('/index')
 def index():
@@ -70,6 +80,7 @@ def get_weather(city):
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&units=metric&appid={OPENWEATHER_API_KEY}"
         response = requests.get(url, timeout=10)
+        print(f"OpenWeather response: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
@@ -86,30 +97,131 @@ def get_weather(city):
                 'description': data.get('weather', [{}])[0].get('description', 'Unknown').capitalize(),
                 'icon': data.get('weather', [{}])[0].get('icon', '01d'),
                 'date': now.strftime('%A, %B %d, %Y'),
-                'time': now.strftime('%I:%M:%S %p'),
-                'sunrise': datetime.fromtimestamp(data.get('sys', {}).get('sunrise', 0)).strftime('%I:%M %p') if data.get('sys', {}).get('sunrise') else 'Unknown',
-                'sunset': datetime.fromtimestamp(data.get('sys', {}).get('sunset', 0)).strftime('%I:%M %p') if data.get('sys', {}).get('sunset') else 'Unknown',
-                'visibility': data.get('visibility', 0) / 1000 if data.get('visibility') else 0
+                'time': now.strftime('%I:%M:%S %p')
             }
             
             return jsonify({'success': True, 'data': weather_data})
             
         elif response.status_code == 404:
             return jsonify({'success': False, 'message': 'City not found'})
+        elif response.status_code == 401:
+            return jsonify({'success': False, 'message': 'Invalid API key. Please check your api.env file'})
         else:
-            return jsonify({'success': False, 'message': 'Unable to fetch weather data'})
+            return jsonify({'success': False, 'message': f'API Error: {response.status_code}'})
             
     except Exception as e:
+        print(f"Weather API Error: {str(e)}")
         return jsonify({'success': False, 'message': 'Server error'})
 
-@app.route('/api/background/<city>')
-def get_background(city):
-    """Fetch city background image"""
+@app.route('/api/forecast/<city>')
+def get_forecast(city):
+    """Fetch 5-day forecast for a city using FREE API endpoint"""
     if not session.get('logged_in'):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
     try:
-        url = f"https://api.unsplash.com/search/photos?query={city}+cityscape&client_id={UNSPLASH_API_KEY}&per_page=1&orientation=landscape"
+        # Use FREE 5-day forecast endpoint (3-hour intervals)
+        url = f"https://api.openweathermap.org/data/2.5/forecast?q={city}&units=metric&appid={OPENWEATHER_API_KEY}"
+        print(f"Fetching forecast for: {city}")
+        print(f"URL: {url}")
+        response = requests.get(url, timeout=10)
+        print(f"Forecast response: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            forecast_list = []
+            
+            # Process forecast data - get one forecast per day (around noon - 12:00)
+            processed_dates = set()
+            
+            for item in data.get('list', []):
+                # Get date from timestamp
+                dt = datetime.fromtimestamp(item.get('dt', 0))
+                date_str = dt.strftime('%Y-%m-%d')
+                
+                # Only process if we haven't seen this date yet and it's around noon (12:00)
+                # This gives us better daytime weather representation
+                if date_str not in processed_dates and '12:00:00' in item.get('dt_txt', ''):
+                    processed_dates.add(date_str)
+                    
+                    forecast_item = {
+                        'day': dt.strftime('%A'),
+                        'date': dt.strftime('%b %d'),
+                        'temp_max': round(item.get('main', {}).get('temp_max', 0), 1),
+                        'temp_min': round(item.get('main', {}).get('temp_min', 0), 1),
+                        'humidity': item.get('main', {}).get('humidity', 0),
+                        'wind_speed': round((item.get('wind', {}).get('speed', 0) * 3.6), 1),
+                        'description': item.get('weather', [{}])[0].get('description', 'Unknown').capitalize(),
+                        'icon': item.get('weather', [{}])[0].get('icon', '01d')
+                    }
+                    
+                    forecast_list.append(forecast_item)
+                    print(f"Added forecast for: {forecast_item['day']} - {forecast_item['date']}")
+                    
+                    # Stop after 5 days
+                    if len(forecast_list) >= 5:
+                        break
+            
+            # If we didn't get 5 days with noon data, get the first entry for each remaining day
+            if len(forecast_list) < 5:
+                for item in data.get('list', []):
+                    dt = datetime.fromtimestamp(item.get('dt', 0))
+                    date_str = dt.strftime('%Y-%m-%d')
+                    
+                    if date_str not in processed_dates:
+                        processed_dates.add(date_str)
+                        
+                        forecast_item = {
+                            'day': dt.strftime('%A'),
+                            'date': dt.strftime('%b %d'),
+                            'temp_max': round(item.get('main', {}).get('temp_max', 0), 1),
+                            'temp_min': round(item.get('main', {}).get('temp_min', 0), 1),
+                            'humidity': item.get('main', {}).get('humidity', 0),
+                            'wind_speed': round((item.get('wind', {}).get('speed', 0) * 3.6), 1),
+                            'description': item.get('weather', [{}])[0].get('description', 'Unknown').capitalize(),
+                            'icon': item.get('weather', [{}])[0].get('icon', '01d')
+                        }
+                        
+                        forecast_list.append(forecast_item)
+                        print(f"Added additional forecast for: {forecast_item['day']} - {forecast_item['date']}")
+                        
+                        if len(forecast_list) >= 5:
+                            break
+            
+            print(f"Total forecast days: {len(forecast_list)}")
+            return jsonify({'success': True, 'data': forecast_list})
+            
+        elif response.status_code == 404:
+            print(f"City not found: {city}")
+            return jsonify({'success': False, 'message': 'City not found'})
+        elif response.status_code == 401:
+            print("API Key error - Invalid authentication")
+            return jsonify({'success': False, 'message': 'Invalid API key. Please check your api.env file'})
+        else:
+            print(f"API Error: {response.status_code} - {response.text}")
+            return jsonify({'success': False, 'message': f'API Error: {response.status_code}'})
+            
+    except requests.exceptions.Timeout:
+        print("Request timeout")
+        return jsonify({'success': False, 'message': 'Request timeout. Please try again.'})
+    except requests.exceptions.RequestException as e:
+        print(f"Request error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Network error. Please check your connection.'})
+    except Exception as e:
+        print(f"Forecast API Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'Server error'})
+
+@app.route('/api/background/<city>/<description>')
+def get_background(city, description):
+    """Fetch city background image based on city and weather description"""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    try:
+        query = f"{city} {description}".replace(' ', '+')
+        url = f"https://api.unsplash.com/search/photos?query={query}&client_id={UNSPLASH_API_KEY}&per_page=1&orientation=landscape"
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
@@ -124,9 +236,10 @@ def get_background(city):
                 })
             return jsonify({'success': False, 'message': 'No images found'})
         else:
-            return jsonify({'success': False, 'message': 'Error fetching image'})
+            return jsonify({'success': False, 'message': f'Image API Error: {response.status_code}'})
             
     except Exception as e:
+        print(f"Background API Error: {str(e)}")
         return jsonify({'success': False, 'message': 'Error loading background'})
 
 @app.route('/api/search-history', methods=['GET'])
@@ -158,9 +271,10 @@ def save_search_history():
             'time': now.strftime('%I:%M %p')
         }
         
+        # Remove duplicate city entries
         history = [h for h in history if h.get('city', '').lower() != city.lower()]
         history.insert(0, entry)
-        history = history[:10]
+        history = history[:15]  # Keep last 15 searches
         
         session['search_history'] = history
         session.modified = True
@@ -180,18 +294,11 @@ def clear_history():
     return jsonify({'success': True, 'message': 'History cleared'})
 
 if __name__ == '__main__':
-    # Create directories if they don't exist
     os.makedirs('templates', exist_ok=True)
-    os.makedirs('static', exist_ok=True)
+    os.makedirs('static/js', exist_ok=True)
     
-    print("=" * 50)
-    print("Weather App Starting...")
-    print(f"OpenWeatherMap API: {'✓ Configured' if OPENWEATHER_API_KEY else '✗ Missing'}")
-    print(f"Unsplash API: {'✓ Configured' if UNSPLASH_API_KEY else '✗ Missing'}")
-    print("=" * 50)
-    print("App running at: http://localhost:5000")
-    print(f"Login: username=harish, password=56789")
-    print("=" * 50)
+    print("=" * 60)
+    print("🌤️  WEATHER APP STARTING...")
+    print("🌐 App running at: http://localhost:5000")
     
-
     app.run(debug=True, host='0.0.0.0', port=5000)
