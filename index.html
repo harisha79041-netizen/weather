@@ -325,6 +325,8 @@
           font-weight: 700;
           box-shadow: 0 4px 15px rgba(255,204,0,0.3);
           transition: all 0.3s;
+          width: 100%;
+          max-width: 500px;
         }
 
         .settings-btn:hover {
@@ -559,11 +561,26 @@
             <div class="settings section-content">
                 <div class="section-description">
                     <strong>Personalize Your Climate Experience</strong><br><br>
-                    Tailor the app to your region's weather standards and preferences. Switch temperature units to Celsius (common in metric climates like Europe) or Fahrenheit (for imperial systems in the US), enabling better understanding of local heat indices or chill factors. Customize notifications for severe weather alerts, themes inspired by seasonal climates, and default locations for quick access to your area's ongoing atmospheric conditions.
+                    Tailor the app to your region's weather standards and preferences. Customize how weather data is displayed, set your favorite locations, and control automatic features for a seamless experience.
                 </div>
+
+                <h3 style="color: #ffcc00; margin: 25px 0 15px 0; font-size: 1.4em;">🌡️ Units & Display</h3>
                 <button class="settings-btn" onclick="toggleUnits()">🌡️ Toggle Temperature Units (°C/°F)</button>
-                <button class="settings-btn" onclick="alert('🔔 Notification settings coming soon!')">🔔 Weather Alert Preferences</button>
-                <button class="settings-btn" onclick="alert('🎨 Theme customization coming soon!')">🎨 Climate Theme Options</button>
+                <button class="settings-btn" onclick="toggleTimeFormat()">⏰ Toggle Time Format (12h/24h)</button>
+
+                <h3 style="color: #ffcc00; margin: 25px 0 15px 0; font-size: 1.4em;">📍 Location Settings</h3>
+                <button class="settings-btn" onclick="saveDefaultCity()">📍 Set Default City</button>
+                <button class="settings-btn" onclick="clearDefaultCity()">🗑️ Clear Default City</button>
+                <button class="settings-btn" onclick="toggleAutoLoad()">🚀 Toggle Auto-Load Default City</button>
+
+                <h3 style="color: #ffcc00; margin: 25px 0 15px 0; font-size: 1.4em;">🎨 Visual Preferences</h3>
+                <button class="settings-btn" onclick="toggleDynamicBackground()">🖼️ Toggle Dynamic Backgrounds</button>
+
+                <h3 style="color: #ffcc00; margin: 25px 0 15px 0; font-size: 1.4em;">⚙️ Advanced</h3>
+                <button class="settings-btn" onclick="setRefreshInterval()">⏱️ Set Auto-Refresh Interval</button>
+                <button class="settings-btn" onclick="resetAllSettings()" style="background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);">🔄 Reset All Settings</button>
+
+                <div id="settings-display"></div>
             </div>
             
             <!-- ABOUT SECTION -->
@@ -591,7 +608,7 @@
                     <strong>📧 Get Involved:</strong><br>
                     Help us refine weather intelligence! Share feedback on climate features or API integrations at <strong>support@weatherapp.com</strong>.<br><br>
                     
-                    <strong>Version:</strong> 2.0 | <strong>Last Updated:</strong> October 2025<br>
+                    <strong>Version:</strong> 2.0 | <strong>Last Updated:</strong> December 2025<br>
                     Crafted with passion for climate enthusiasts and everyday weather watchers 🌍
                 </div>
             </div>
