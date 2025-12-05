@@ -38,6 +38,15 @@ document.addEventListener('DOMContentLoaded', function() {
   // Start time and date update immediately - this will keep updating every second
   updateDateTime();
   
+  // Load default city if set
+  loadDefaultCity();
+  
+  // Setup auto-refresh if enabled
+  setupAutoRefresh();
+  
+  // Update settings display if on settings page
+  updateSettingsDisplay();
+  
   // Check if city parameter is in URL (from history page)
   const urlParams = new URLSearchParams(window.location.search);
   const cityFromUrl = urlParams.get('city');
@@ -257,6 +266,14 @@ function displayForecast(forecastData) {
 
 // ========== UPDATE BACKGROUND ==========
 async function updateBackground(city, description) {
+  // Check if dynamic backgrounds are enabled
+  const dynamicBgEnabled = localStorage.getItem('dynamicBackground') !== 'false';
+  
+  if (!dynamicBgEnabled) {
+    console.log('Dynamic backgrounds disabled');
+    return;
+  }
+  
   try {
     const response = await fetch(`/api/background/${encodeURIComponent(city)}/${encodeURIComponent(description)}`);
     const result = await response.json();
@@ -377,6 +394,142 @@ function updateForecastUnits(toCelsius) {
   });
 }
 
+// ========== SETTINGS FEATURES ==========
+function saveDefaultCity() {
+  const city = prompt("🌍 Enter your default city (e.g., London, Tokyo):");
+  if (city && city.trim()) {
+    localStorage.setItem('defaultCity', city.trim());
+    alert(`✅ Default city set to: ${city.trim()}\n\nThis city will load automatically when you open the app.`);
+    updateSettingsDisplay();
+  }
+}
+
+function loadDefaultCity() {
+  const defaultCity = localStorage.getItem('defaultCity');
+  const autoLoad = localStorage.getItem('autoLoadDefault');
+  
+  if (defaultCity && autoLoad === 'true' && cityInput) {
+    cityInput.value = defaultCity;
+    // Auto-search after a brief delay
+    setTimeout(() => {
+      getWeather();
+    }, 500);
+  } else if (defaultCity && cityInput) {
+    cityInput.value = defaultCity;
+  }
+}
+
+function clearDefaultCity() {
+  const defaultCity = localStorage.getItem('defaultCity');
+  if (!defaultCity) {
+    alert('ℹ️ No default city is currently set.');
+    return;
+  }
+  
+  if (confirm(`🗑️ Clear default city: "${defaultCity}"?`)) {
+    localStorage.removeItem('defaultCity');
+    alert('✅ Default city cleared!');
+    updateSettingsDisplay();
+  }
+}
+
+function toggleAutoLoad() {
+  const current = localStorage.getItem('autoLoadDefault') === 'true';
+  localStorage.setItem('autoLoadDefault', (!current).toString());
+  alert(current ? '✅ Auto-load disabled' : '✅ Auto-load enabled - default city will load automatically');
+  updateSettingsDisplay();
+}
+
+function toggleDynamicBackground() {
+  const current = localStorage.getItem('dynamicBackground') !== 'false'; // default true
+  localStorage.setItem('dynamicBackground', (!current).toString());
+  alert(current ? '✅ Dynamic backgrounds disabled' : '✅ Dynamic backgrounds enabled');
+  updateSettingsDisplay();
+}
+
+function toggleTimeFormat() {
+  const current = localStorage.getItem('timeFormat') || '12';
+  const newFormat = current === '12' ? '24' : '12';
+  localStorage.setItem('timeFormat', newFormat);
+  alert(`✅ Time format set to: ${newFormat}-hour`);
+  updateDateTime();
+  updateSettingsDisplay();
+}
+
+function setRefreshInterval() {
+  const current = localStorage.getItem('refreshInterval') || '0';
+  const minutes = prompt(`⏱️ Set auto-refresh interval (in minutes)\n\nCurrent: ${current === '0' ? 'Disabled' : current + ' minutes'}\n\nEnter 0 to disable, or 1-60 for minutes:`, current);
+  
+  if (minutes !== null) {
+    const value = parseInt(minutes);
+    if (!isNaN(value) && value >= 0 && value <= 60) {
+      localStorage.setItem('refreshInterval', value.toString());
+      setupAutoRefresh();
+      alert(value === 0 ? '✅ Auto-refresh disabled' : `✅ Auto-refresh set to ${value} minute(s)`);
+      updateSettingsDisplay();
+    } else {
+      alert('❌ Please enter a number between 0 and 60');
+    }
+  }
+}
+
+function setupAutoRefresh() {
+  const interval = parseInt(localStorage.getItem('refreshInterval') || '0');
+  
+  // Clear any existing interval
+  if (window.weatherRefreshInterval) {
+    clearInterval(window.weatherRefreshInterval);
+  }
+  
+  // Set new interval if enabled
+  if (interval > 0 && currentCity) {
+    window.weatherRefreshInterval = setInterval(() => {
+      console.log('Auto-refreshing weather data...');
+      getWeather();
+    }, interval * 60 * 1000);
+  }
+}
+
+function updateSettingsDisplay() {
+  const defaultCity = localStorage.getItem('defaultCity') || 'Not set';
+  const autoLoad = localStorage.getItem('autoLoadDefault') === 'true' ? 'Enabled' : 'Disabled';
+  const dynamicBg = localStorage.getItem('dynamicBackground') !== 'false' ? 'Enabled' : 'Disabled';
+  const timeFormat = localStorage.getItem('timeFormat') || '12';
+  const refresh = localStorage.getItem('refreshInterval') || '0';
+  
+  const displayEl = document.getElementById('settings-display');
+  if (displayEl) {
+    displayEl.innerHTML = `
+      <div style="background: rgba(255,204,0,0.1); padding: 20px; border-radius: 12px; border: 2px solid rgba(255,204,0,0.3); margin-top: 20px;">
+        <h3 style="color: #ffcc00; margin-bottom: 15px;">📋 Current Settings</h3>
+        <p style="color: #fff; margin: 8px 0;"><strong>Default City:</strong> ${defaultCity}</p>
+        <p style="color: #fff; margin: 8px 0;"><strong>Auto-load Default:</strong> ${autoLoad}</p>
+        <p style="color: #fff; margin: 8px 0;"><strong>Dynamic Backgrounds:</strong> ${dynamicBg}</p>
+        <p style="color: #fff; margin: 8px 0;"><strong>Time Format:</strong> ${timeFormat}-hour</p>
+        <p style="color: #fff; margin: 8px 0;"><strong>Auto-refresh:</strong> ${refresh === '0' ? 'Disabled' : refresh + ' minutes'}</p>
+      </div>
+    `;
+  }
+}
+
+function resetAllSettings() {
+  if (confirm('⚠️ Reset all settings to default?\n\nThis will clear:\n- Default city\n- All preferences\n- Search history remains unchanged')) {
+    localStorage.removeItem('defaultCity');
+    localStorage.removeItem('autoLoadDefault');
+    localStorage.removeItem('dynamicBackground');
+    localStorage.removeItem('timeFormat');
+    localStorage.removeItem('refreshInterval');
+    
+    if (window.weatherRefreshInterval) {
+      clearInterval(window.weatherRefreshInterval);
+    }
+    
+    alert('✅ All settings reset to default!');
+    updateSettingsDisplay();
+    updateDateTime(); // Update time format immediately
+  }
+}
+
 // ========== SECTION SWITCHER ==========
 function showSection(section, event) {
   console.log("Switching to section:", section);
@@ -384,6 +537,11 @@ function showSection(section, event) {
   // If switching to forecast and we have a city, load forecast
   if (section === 'forecast' && currentCity) {
     getForecast(currentCity);
+  }
+  
+  // If switching to settings, update the display
+  if (section === 'settings') {
+    updateSettingsDisplay();
   }
   
   // Hide all sections
@@ -419,6 +577,7 @@ function showSection(section, event) {
 // ========== AUTO UPDATE TIME AND DATE ==========
 function updateDateTime() {
   const now = new Date();
+  const timeFormat = localStorage.getItem('timeFormat') || '12';
   
   // Update date
   if (dateEl) {
@@ -432,10 +591,14 @@ function updateDateTime() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
     
-    timeEl.textContent = `${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+    if (timeFormat === '24') {
+      timeEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    } else {
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      timeEl.textContent = `${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+    }
   }
 }
 
@@ -467,3 +630,10 @@ document.head.appendChild(style);
 window.getWeather = getWeather;
 window.toggleUnits = toggleUnits;
 window.showSection = showSection;
+window.saveDefaultCity = saveDefaultCity;
+window.clearDefaultCity = clearDefaultCity;
+window.toggleAutoLoad = toggleAutoLoad;
+window.toggleDynamicBackground = toggleDynamicBackground;
+window.toggleTimeFormat = toggleTimeFormat;
+window.setRefreshInterval = setRefreshInterval;
+window.resetAllSettings = resetAllSettings;
