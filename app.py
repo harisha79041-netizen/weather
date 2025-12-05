@@ -27,8 +27,12 @@ if not UNSPLASH_API_KEY:
     print("❌ ERROR: UNSPLASH_API_KEY not set in api.env")
 
 # Login credentials
-VALID_USERNAME = ""
-VALID_PASSWORD_HASH = generate_password_hash("")
+VALID_USERNAME = "harish"
+VALID_PASSWORD_HASH = generate_password_hash("56789")
+
+# Cache for reducing API calls (optional but recommended)
+weather_cache = {}
+CACHE_DURATION = 300  # 5 minutes in seconds
 
 @app.route('/')
 def show_login():
@@ -73,9 +77,17 @@ def history():
 
 @app.route('/api/weather/<city>')
 def get_weather(city):
-    """Fetch weather data for a city"""
+    """Fetch weather data for a city with caching"""
     if not session.get('logged_in'):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    # Check cache first
+    cache_key = f"weather_{city.lower()}"
+    if cache_key in weather_cache:
+        cached_data, cached_time = weather_cache[cache_key]
+        if (datetime.now() - cached_time).seconds < CACHE_DURATION:
+            print(f"Returning cached weather data for {city}")
+            return jsonify({'success': True, 'data': cached_data, 'cached': True})
     
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&units=metric&appid={OPENWEATHER_API_KEY}"
@@ -97,8 +109,12 @@ def get_weather(city):
                 'description': data.get('weather', [{}])[0].get('description', 'Unknown').capitalize(),
                 'icon': data.get('weather', [{}])[0].get('icon', '01d'),
                 'date': now.strftime('%A, %B %d, %Y'),
-                'time': now.strftime('%I:%M:%S %p')
+                'time': now.strftime('%I:%M:%S %p'),
+                'timestamp': now.isoformat()
             }
+            
+            # Cache the data
+            weather_cache[cache_key] = (weather_data, now)
             
             return jsonify({'success': True, 'data': weather_data})
             
@@ -115,15 +131,22 @@ def get_weather(city):
 
 @app.route('/api/forecast/<city>')
 def get_forecast(city):
-    """Fetch 5-day forecast for a city using FREE API endpoint"""
+    """Fetch 5-day forecast for a city using FREE API endpoint with caching"""
     if not session.get('logged_in'):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    # Check cache first
+    cache_key = f"forecast_{city.lower()}"
+    if cache_key in weather_cache:
+        cached_data, cached_time = weather_cache[cache_key]
+        if (datetime.now() - cached_time).seconds < CACHE_DURATION:
+            print(f"Returning cached forecast data for {city}")
+            return jsonify({'success': True, 'data': cached_data, 'cached': True})
     
     try:
         # Use FREE 5-day forecast endpoint (3-hour intervals)
         url = f"https://api.openweathermap.org/data/2.5/forecast?q={city}&units=metric&appid={OPENWEATHER_API_KEY}"
         print(f"Fetching forecast for: {city}")
-        print(f"URL: {url}")
         response = requests.get(url, timeout=10)
         print(f"Forecast response: {response.status_code}")
         
@@ -140,7 +163,6 @@ def get_forecast(city):
                 date_str = dt.strftime('%Y-%m-%d')
                 
                 # Only process if we haven't seen this date yet and it's around noon (12:00)
-                # This gives us better daytime weather representation
                 if date_str not in processed_dates and '12:00:00' in item.get('dt_txt', ''):
                     processed_dates.add(date_str)
                     
@@ -156,9 +178,7 @@ def get_forecast(city):
                     }
                     
                     forecast_list.append(forecast_item)
-                    print(f"Added forecast for: {forecast_item['day']} - {forecast_item['date']}")
                     
-                    # Stop after 5 days
                     if len(forecast_list) >= 5:
                         break
             
@@ -183,26 +203,24 @@ def get_forecast(city):
                         }
                         
                         forecast_list.append(forecast_item)
-                        print(f"Added additional forecast for: {forecast_item['day']} - {forecast_item['date']}")
                         
                         if len(forecast_list) >= 5:
                             break
+            
+            # Cache the forecast data
+            weather_cache[cache_key] = (forecast_list, datetime.now())
             
             print(f"Total forecast days: {len(forecast_list)}")
             return jsonify({'success': True, 'data': forecast_list})
             
         elif response.status_code == 404:
-            print(f"City not found: {city}")
             return jsonify({'success': False, 'message': 'City not found'})
         elif response.status_code == 401:
-            print("API Key error - Invalid authentication")
             return jsonify({'success': False, 'message': 'Invalid API key. Please check your api.env file'})
         else:
-            print(f"API Error: {response.status_code} - {response.text}")
             return jsonify({'success': False, 'message': f'API Error: {response.status_code}'})
             
     except requests.exceptions.Timeout:
-        print("Request timeout")
         return jsonify({'success': False, 'message': 'Request timeout. Please try again.'})
     except requests.exceptions.RequestException as e:
         print(f"Request error: {str(e)}")
@@ -293,13 +311,50 @@ def clear_history():
     session.modified = True
     return jsonify({'success': True, 'message': 'History cleared'})
 
+@app.route('/api/clear-cache', methods=['POST'])
+def clear_cache():
+    """Clear weather cache (admin feature)"""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    weather_cache.clear()
+    return jsonify({'success': True, 'message': 'Cache cleared successfully'})
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """Get app statistics"""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    history = session.get('search_history', [])
+    
+    stats = {
+        'total_searches': len(history),
+        'unique_cities': len(set([h.get('city', '').lower() for h in history])),
+        'cache_size': len(weather_cache),
+        'session_active': session.get('logged_in', False),
+        'username': session.get('username', 'Unknown')
+    }
+    
+    return jsonify({'success': True, 'stats': stats})
+
 if __name__ == '__main__':
     os.makedirs('templates', exist_ok=True)
     os.makedirs('static/js', exist_ok=True)
     
     print("=" * 60)
     print("🌤️  WEATHER APP STARTING...")
+    print("=" * 60)
+    print("✅ Features Enabled:")
+    print("   • User Authentication")
+    print("   • Weather API with Caching")
+    print("   • 5-Day Forecast")
+    print("   • Dynamic Backgrounds")
+    print("   • Search History")
+    print("   • User Settings Support")
+    print("=" * 60)
     print("🌐 App running at: http://localhost:5000")
+    print("👤 Login: harish / 56789")
+    print("=" * 60)
     
     app.run(debug=True, host='0.0.0.0', port=5000)
-
